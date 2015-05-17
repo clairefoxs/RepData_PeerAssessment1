@@ -1,9 +1,3 @@
----
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
----
 
 Peer Assessment Number 1
 ==========================
@@ -21,12 +15,15 @@ Date column is converted to as.Date.
 data$date <- as.Date(data$date)
 ```
 
-Interval column is converted to H:M format.
+Interval column is converted to 24-hours.
 
 ``` {r}
-#data$interval <- sprintf("%04d", data$interval)
-#data$interval <- as.POSIXct(data$interval, format="%H%M")
-#data$interval <- format(data$interval, format="%H:%M:%S")
+library(lubridate)
+interval.lub <- sprintf("%04d", data$interval)
+interval.lub <- as.POSIXct(interval.lub, format="%H%M")
+interval.lub <- ymd_hms(interval.lub)
+interval.lub <- hour(interval.lub) + minute(interval.lub)/60
+data$interval <- interval.lub
 ```
 
 ## Question 1: What is mean total number of steps taken per day?
@@ -42,14 +39,16 @@ for (x in dates) {
         StepsPerDay <- append(StepsPerDay, total)
 }
 
-hist(StepsPerDay, xlab="Number of steps per day", main="Histogram of steps per day")
-
 mean_steps <- round(mean(StepsPerDay), digits=2)
 median_steps <- median(StepsPerDay)
 
+hist(StepsPerDay, xlab="Number of steps per day", main="Histogram of steps per day")
+abline(v=mean_steps, col="blue", lwd=2)
+abline(v=median_steps, col="red", lwd=2)
+
 ```
 
-The mean total of steps per day was **`r mean_steps`**. The Median was **`r median_steps`**.
+The mean total of steps per day (blue) was **`r mean_steps`**. The Median (red) was **`r median_steps`**.
 
 ## Question 2: What is the average daily activity pattern?
 
@@ -66,9 +65,9 @@ for (x in intervals) {
 
 Q2_df <- data.frame(interval=intervals, mean_steps=StepsPerInt)
 
-plot(Q2_df$interval, Q2_df$mean_steps, type="l", xlab="Time", ylab="Mean Steps", main="Daily Activity Pattern")
+plot(Q2_df$interval, Q2_df$mean_steps, type="l", xlab="Hour", ylab="Mean Steps", main="Daily Activity Pattern")
 
-int_max <- Q2_df[which(Q2_df$mean_steps==max(Q2_df$mean_steps)),1]
+int_max <- round(Q2_df[which(Q2_df$mean_steps==max(Q2_df$mean_steps)),1], digits=2)
 max_mean <- round(Q2_df[which(Q2_df$mean_steps==max(Q2_df$mean_steps)),2], digits=2)
 
 ```
@@ -90,46 +89,55 @@ The total number of rows with NAs is **`r na_rows`**.
 The following replaces NA values in the steps column with the mean of the corresponding interval. A histogram is created to show the number of steps taken per day, adjusting for NA values.
 
 ```{r replace_nas}
-complete_data <- data
+complete_steps <- NULL
 
 for (i in seq_along(data$steps)) {
         int <- complete_data$interval[i]
-        if (is.na(complete_data$steps[i])) {
-                complete_data$steps[i] <- Q2_df[which(Q2_df$interval==int),2]
+        stp <- complete_data$steps[i]
+        avg <- Q2_df[which(Q2_df$interval==int),2]
+        if (is.na(stp)) {
+                complete_steps <- append(complete_steps,avg)
                 }
+        else {
+                complete_steps <- append(complete_steps,stp)
+        }
         
 }
+data$comp.steps <- complete_steps
 
 StepsPerDay2 <- NULL
 
 for (x in dates) {
-        total <- sum(data$steps[which(data$date==x)], na.rm=TRUE)
+        total <- sum(data$comp.steps[which(data$date==x)], na.rm=TRUE)
         StepsPerDay2 <- append(StepsPerDay2, total)
 }
 
-hist(StepsPerDay2, xlab="Number of steps per day", main="Histogram of steps per day (NAs replaced")
-
 adj_mean <- round(mean(StepsPerDay2), digits=2)
-adj_median <- median(StepsPerDay2)
+adj_median <- round(median(StepsPerDay2), digits=2)
+
+hist(StepsPerDay2, xlab="Number of steps per day", main="Histogram of steps per day (NAs replaced)")
+
+abline(v=adj_mean, lwd=2, col="red")
+
 
 ```
 
-The adjusted mean total of steps per day was **`r adj_mean`**. The Median was **`r`**.
+The adjusted mean total of steps per day (red) was **10766.19** and the median was also **10766.19**.
 
 ## Question 4: Are there differences in activity patterns between weekdays and weekends?
 
 First a new column which defines each entry as either "weekend" or "weekday" is created.
 
 ```{r weekdays}
-complete_data$weekday <- NULL
-for (x in seq_along(complete_data$date)) {
-        day <- weekdays(complete_data$date[x])
+data$weekday <- NULL
+for (x in seq_along(data$date)) {
+        day <- weekdays(data$date[x])
         weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
         if (day %in% weekdays) {
-                complete_data$weekday[x] <- "weekday"
+                data$weekday[x] <- "weekday"
         }
         else {
-                complete_data$weekday[x] <- "weekend"
+                data$weekday[x] <- "weekend"
         }
 }
 ```
@@ -141,10 +149,10 @@ weekday_steps <- NULL
 weekend_steps <- NULL
 
 for (x in intervals) {
-        avg_day <- mean(complete_data$steps[which(complete_data$interval==x
-                                                  & complete_data$weekday=="weekday")])
-        avg_end <- mean(complete_data$steps[which(complete_data$interval==x
-                                                  & complete_data$weekday=="weekend")])
+        avg_day <- mean(data$comp.steps[which(data$interval==x
+                                         & data$weekday=="weekday")])
+        avg_end <- mean(data$comp.steps[which(data$interval==x
+                                        & data$weekday=="weekend")])
         weekday_steps <- append(weekday_steps, avg_day)
         weekend_steps <- append(weekend_steps, avg_end)
 }
@@ -154,6 +162,6 @@ weekend_df <- data.frame(interval=intervals, mean_steps=weekend_steps, day="week
 Q4_df <- rbind(weekday_df, weekend_df)
 
 library(lattice)
-xyplot(mean_steps ~ interval | day, data = Q4_df, layout = c(1,2), type="l", ylab="Mean Steps", xlab="Time")
+xyplot(mean_steps ~ interval | day, data = Q4_df, layout = c(1,2), type="l", ylab="Mean Steps", xlab="Hour")
 
 ```
