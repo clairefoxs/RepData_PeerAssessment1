@@ -92,8 +92,8 @@ The following replaces NA values in the steps column with the mean of the corres
 complete_steps <- NULL
 
 for (i in seq_along(data$steps)) {
-        int <- complete_data$interval[i]
-        stp <- complete_data$steps[i]
+        int <- data$interval[i]
+        stp <- data$steps[i]
         avg <- Q2_df[which(Q2_df$interval==int),2]
         if (is.na(stp)) {
                 complete_steps <- append(complete_steps,avg)
